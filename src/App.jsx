@@ -26,6 +26,7 @@ const SEED = {
     { id: "cn3", nome: "Pedro Oliveira", clientId: "c2" },
     { id: "cn4", nome: "Ana Costa", clientId: "c3" },
     { id: "cn5", nome: "Carlos Lima", clientId: "c4" },
+    { id: "cn6", nome: "Bruno", clientId: "c1" }
   ],
   users: [
     { id: "admin", username: "admin", password: "admin123", role: "admin", nome: "Administrador", consultorId: null },
@@ -34,7 +35,7 @@ const SEED = {
     { id: "u3", username: "pedro", password: "123456", role: "consultant", nome: "Pedro Oliveira", consultorId: "cn3" },
     { id: "u4", username: "ana", password: "123456", role: "consultant", nome: "Ana Costa", consultorId: "cn4" },
     { id: "u5", username: "carlos", password: "123456", role: "consultant", nome: "Carlos Lima", consultorId: "cn5" },
-    { id: "u6", username: "bruno", password: "123456", role: "admin", nome: "Bruno", consultorId: "cn6" },
+    { id: "u6", username: "bruno", password: "123456", role: "consultant", nome: "Bruno", consultorId: "cn6" },
     { id: "u7", username: "mat", password: "123456", role: "consultant", nome: "Mateus", consultorId: "cn7" },
   ],
   logs: [],
