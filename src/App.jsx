@@ -278,7 +278,7 @@ function LoginPage({ users, onLogin }) {
 
         <div style={{ marginTop: "24px", background: K.bg, borderRadius: "10px", padding: "14px", fontSize: "12px" }}>
           <div style={{ color: K.dim, fontWeight: "700", letterSpacing: "0.06em", marginBottom: "8px" }}>NTT Data BS</div>
-          <div style={{ color: K.dim }}> <span style={{ color: K.blue, fontFamily: "monospace" }}>Lucas de Sá © 2026</span></div>
+          <div style={{ color: K.dim }}> <span style={{ color: K.blue, fontFamily: "monospace" }}>lds © 2026</span></div>
         </div>
       </div>
     </div>
