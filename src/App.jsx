@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import nttLogo from "./assets/ntt-data-logo.png";
 
 const TWO_H = 7200000;
 const WARN_T = 300000;
@@ -35,6 +34,8 @@ const SEED = {
     { id: "u3", username: "pedro", password: "123456", role: "consultant", nome: "Pedro Oliveira", consultorId: "cn3" },
     { id: "u4", username: "ana", password: "123456", role: "consultant", nome: "Ana Costa", consultorId: "cn4" },
     { id: "u5", username: "carlos", password: "123456", role: "consultant", nome: "Carlos Lima", consultorId: "cn5" },
+    { id: "u6", username: "bruno", password: "123456", role: "consultant", nome: "Bruno", consultorId: "cn6" },
+    { id: "u7", username: "mat", password: "123456", role: "consultant", nome: "Mateus", consultorId: "cn7" },
   ],
   logs: [],
 };
