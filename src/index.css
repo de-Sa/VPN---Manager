@@ -1,34 +1,30 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  box-sizing: border-box;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* remove o “site em coluna” e o efeito de bordas laterais */
+  border: none;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  /* evita centralizar tudo sem querer */
+  text-align: initial;
+
+  display: flex;
+  flex-direction: column;
 }
+
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0f172a; /* mesmo valor do K.bg */
+}
+
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -108,4 +104,56 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+/* ===========================
+   Scrollbar moderna (global)
+   =========================== */
+
+/* Chrome / Edge / Brave / Opera */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.35); /* K.bg mais suave */
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.55); /* K.muted suavizado */
+  border-radius: 999px;
+  border: 2px solid rgba(15, 23, 42, 0.35);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.85);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.65) rgba(15, 23, 42, 0.35);
+}
+
+/* Grid responsivo para cards de token: 1 col (mobile), 2 (médio), 3 (desktop) */
+.token-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+/* telas médias */
+@media (min-width: 768px) {
+  .token-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* desktop */
+@media (min-width: 1200px) {
+  .token-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

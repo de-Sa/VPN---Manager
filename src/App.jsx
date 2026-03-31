@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
-const TWO_H = 7200000;
-const WARN_T = 300000;
+const MIN_MS = 10 * 60 * 1000;      // 10 minutos
+const MAX_MS = 2 * 60 * 60 * 1000;  // 2 horas
+const WARN_MS = 5 * 60 * 1000;      // últimos 5 minutos (aviso)
+
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 
 const SEED = {
@@ -12,13 +14,13 @@ const SEED = {
     { id: "c4", nome: "Cliente4" },
   ],
   tokens: [
-    { id: "t1", nome: "VPN 1", clientId: "c1", status: "livre", consultorId: null, loginVPN: "cli1_vpn1", senhaVPN: "Abc@1234", startTime: null },
-    { id: "t2", nome: "VPN 2", clientId: "c1", status: "livre", consultorId: null, loginVPN: "cli1_vpn2", senhaVPN: "Abc@5678", startTime: null },
-    { id: "t3", nome: "VPN 3", clientId: "c1", status: "livre", consultorId: null, loginVPN: "cli1_vpn3", senhaVPN: "Abc@9012", startTime: null },
-    { id: "t4", nome: "VPN 1", clientId: "c2", status: "livre", consultorId: null, loginVPN: "cli2_vpn1", senhaVPN: "Def@1111", startTime: null },
-    { id: "t5", nome: "VPN 2", clientId: "c2", status: "livre", consultorId: null, loginVPN: "cli2_vpn2", senhaVPN: "Def@2222", startTime: null },
-    { id: "t6", nome: "VPN 1", clientId: "c3", status: "livre", consultorId: null, loginVPN: "cli3_vpn1", senhaVPN: "Ghi@3333", startTime: null },
-    { id: "t7", nome: "VPN 1", clientId: "c4", status: "livre", consultorId: null, loginVPN: "cli4_vpn1", senhaVPN: "Jkl@4444", startTime: null },
+    { id: "t1", nome: "VPN 1", clientId: "c1", status: "livre", consultorId: null, loginVPN: "cli1_vpn1", senhaVPN: "Abc@1234", startTime: null, durationMs: null, expiresAt: null },
+    { id: "t2", nome: "VPN 2", clientId: "c1", status: "livre", consultorId: null, loginVPN: "cli1_vpn2", senhaVPN: "Abc@4234", startTime: null, durationMs: null, expiresAt: null },
+    { id: "t3", nome: "VPN 3", clientId: "c1", status: "livre", consultorId: null, loginVPN: "cli1_vpn3", senhaVPN: "Abc@4125", startTime: null, durationMs: null, expiresAt: null },
+    { id: "t4", nome: "VPN 1", clientId: "c2", status: "livre", consultorId: null, loginVPN: "cli2_vpn1", senhaVPN: "Def@1111", startTime: null, durationMs: null, expiresAt: null },
+    { id: "t5", nome: "VPN 2", clientId: "c2", status: "livre", consultorId: null, loginVPN: "cli2_vpn2", senhaVPN: "Def@2222", startTime: null, durationMs: null, expiresAt: null },
+    { id: "t6", nome: "VPN 1", clientId: "c3", status: "livre", consultorId: null, loginVPN: "cli3_vpn1", senhaVPN: "Ghi@3333", startTime: null, durationMs: null, expiresAt: null  },
+    { id: "t7", nome: "VPN 1", clientId: "c4", status: "livre", consultorId: null, loginVPN: "cli4_vpn1", senhaVPN: "Jkl@4444", startTime: null, durationMs: null, expiresAt: null  },
   ],
   consultants: [
     { id: "cn1", nome: "João Silva", clientId: "c1" },
@@ -38,7 +40,10 @@ const SEED = {
     { id: "u6", username: "bruno", password: "123456", role: "consultant", nome: "Bruno", consultorId: "cn6" },
     { id: "u7", username: "mat", password: "123456", role: "consultant", nome: "Mateus", consultorId: "cn7" },
   ],
+  
   logs: [],
+
+  sapAccesses: [],
 };
 
 const db = {
@@ -89,20 +94,19 @@ const inp = (extra = {}) => ({
   color: "#e2e8f0", padding: "10px 14px", fontSize: "14px", boxSizing: "border-box", outline: "none", ...extra,
 });
 
-function useTimer(startTime) {
+function useRemaining(expiresAt) {
   const [rem, setRem] = useState(null);
 
   useEffect(() => {
-    if (!startTime) {
+    if (!expiresAt) {
       setRem(null);
       return;
     }
-
-    const tick = () => setRem(TWO_H - (Date.now() - startTime));
+    const tick = () => setRem(expiresAt - Date.now());
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [startTime]);
+  }, [expiresAt]);
 
   return rem;
 }
@@ -123,50 +127,64 @@ function Toast({ toast }) {
   );
 }
 
-function WarningModal({ token, onExtend, onRelease }) {
-  const [rem, setRem] = useState(WARN_T);
-
-  useEffect(() => {
-    const start = Date.now();
-    const id = setInterval(() => {
-      const r = WARN_T - (Date.now() - start);
-      setRem(r);
-      if (r <= 0) {
-        clearInterval(id);
-        onRelease();
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
+function WarningModal({ token, remainingMs, onRenew, onClose }) {
   return (
-    <div style={{
-      position: "absolute", inset: 0, zIndex: 150,
-      background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
-      <div style={{
-        background: K.card, border: `2px solid ${K.yellow}`, borderRadius: "20px",
-        padding: "40px", maxWidth: "420px", width: "90%", textAlign: "center",
-      }}>
-        <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
-        <h2 style={{ color: K.yellow, margin: "0 0 12px", fontSize: "20px" }}>Sessão Expirando!</h2>
-        <p style={{ color: K.muted, margin: "0 0 8px", fontSize: "15px" }}>
-          Sua sessão na <strong style={{ color: K.text }}>{token.nome}</strong> encerra em:
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 150,
+        background: "rgba(0,0,0,0.85)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          background: K.card,
+          border: `2px solid ${K.yellow}`,
+          borderRadius: "20px",
+          padding: "36px",
+          maxWidth: "440px",
+          width: "92%",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: "48px", marginBottom: "10px" }}>⚠️</div>
+
+        <h2 style={{ color: K.yellow, margin: "0 0 10px", fontSize: "18px" }}>
+          Tempo de VPN quase acabando!
+        </h2>
+
+        <p style={{ color: K.muted, margin: "0 0 6px", fontSize: "14px" }}>
+          Sua sessão na <strong style={{ color: K.text }}>{token?.nome}</strong> expira em:
         </p>
-        <div style={{ fontSize: "40px", fontFamily: "monospace", color: K.red, fontWeight: "700", margin: "12px 0 8px" }}>
-          {fmtMs(Math.max(0, rem))}
+
+        <div
+          style={{
+            fontSize: "38px",
+            fontFamily: "monospace",
+            color: K.yellow,
+            fontWeight: "800",
+            margin: "10px 0 14px",
+          }}
+        >
+          {fmtMs(Math.max(0, remainingMs))}
         </div>
-        <p style={{ color: K.dim, fontSize: "13px", marginBottom: "28px" }}>
-          Você será desconectado automaticamente se não agir.
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+          <button onClick={onRenew} style={btn(K.green, { padding: "10px 18px" })}>
+            🔄 Renovar
+          </button>
+          <button onClick={onClose} style={btn(K.dim, { padding: "10px 18px" })}>
+            Fechar
+          </button>
+        </div>
+
+        <p style={{ color: K.dim, fontSize: "12px", marginTop: "14px" }}>
+          Se você fechar, a VPN será liberada automaticamente ao final do tempo.
         </p>
-        <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-          <button onClick={onExtend} style={btn(K.green, { padding: "12px 24px", fontSize: "14px" })}>
-            🔄 Estender +2h
-          </button>
-          <button onClick={onRelease} style={btn(K.red, { padding: "12px 24px", fontSize: "14px" })}>
-            🔓 Liberar VPN
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -192,6 +210,72 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
     </div>
   );
 }
+
+
+function DurationModal({ title, initialMinutes = 120, onConfirm, onCancel }) {
+  const [minutes, setMinutes] = useState(initialMinutes);
+
+  const clamp = (m) => Math.max(10, Math.min(120, Number(m) || 10));
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 160,
+        background: "rgba(0,0,0,0.75)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          background: K.card,
+          border: `1px solid ${K.border}`,
+          borderRadius: "16px",
+          padding: "24px",
+          width: "100%",
+          maxWidth: "420px",
+        }}
+      >
+        <h3 style={{ margin: "0 0 10px", color: K.text }}>{title}</h3>
+        <p style={{ margin: "0 0 16px", color: K.dim, fontSize: "13px" }}>
+          Selecione o tempo de uso (10 min até 2h).
+        </p>
+
+        <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "14px" }}>
+          <input
+            type="range"
+            min={10}
+            max={120}
+            step={5}
+            value={minutes}
+            onChange={(e) => setMinutes(clamp(e.target.value))}
+            style={{ flex: 1 }}
+          />
+          <input
+            style={inp({ width: "90px", textAlign: "center" })}
+            value={minutes}
+            onChange={(e) => setMinutes(clamp(e.target.value))}
+          />
+          <span style={{ color: K.muted, fontSize: "12px" }}>min</span>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <button onClick={onCancel} style={btn(K.dim, { padding: "8px 14px" })}>
+            Cancelar
+          </button>
+          <button onClick={() => onConfirm(clamp(minutes))} style={btn(K.blue, { padding: "8px 14px" })}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function Navbar({ user, onLogout }) {
   return (
@@ -286,57 +370,112 @@ function LoginPage({ users, onLogin }) {
 }
 
 function TokenCard({ token, consultant, myConsultorId, isAdmin, onReserve, onRelease }) {
-  const rem = useTimer(token.status === "ocupado" ? token.startTime : null);
+  const rem = useRemaining(token.status === "ocupado" ? token.expiresAt : null);
   const isFree = token.status === "livre";
-  const isWarning = rem !== null && rem > 0 && rem <= WARN_T;
+  const isWarning = rem !== null && rem > 0 && rem <= WARN_MS;
   const isExpired = rem !== null && rem <= 0;
   const isMyToken = token.consultorId === myConsultorId;
+
   const borderColor = isFree ? K.green : isWarning ? K.yellow : K.red;
 
   return (
-    <div style={{
-      background: isFree ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)",
-      border: `1px solid ${borderColor}`, borderRadius: "12px", padding: "16px",
-      minWidth: "195px", flex: "1", maxWidth: "260px", position: "relative",
-    }}>
-      <div style={{
-        position: "absolute", top: "14px", right: "14px",
-        width: "10px", height: "10px", borderRadius: "50%",
-        background: isFree ? K.green : K.red,
-      }} />
-      <div style={{ fontWeight: "700", color: K.text, fontSize: "14px", marginBottom: "10px" }}>{token.nome}</div>
+    <div
+      style={{
+        background: isFree ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)",
+        border: `1px solid ${borderColor}`,
+        borderRadius: "12px",
+        padding: "16px",
+        minWidth: "195px",
+        flex: "1",
+        maxWidth: "260px",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: "14px",
+          right: "14px",
+          width: "10px",
+          height: "10px",
+          borderRadius: "50%",
+          background: isFree ? K.green : K.red,
+        }}
+      />
+
+      <div style={{ fontWeight: "700", color: K.text, fontSize: "14px", marginBottom: "10px" }}>
+        {token.nome}
+      </div>
 
       {isFree ? (
         <>
-          <div style={{ fontSize: "11px", color: K.dim, marginBottom: "2px" }}>Login VPN</div>
-          <div style={{ fontFamily: "monospace", color: K.green, fontSize: "13px", marginBottom: "8px" }}>{token.loginVPN}</div>
-          <div style={{ fontSize: "11px", color: K.dim, marginBottom: "2px" }}>Senha VPN</div>
-          <div style={{ fontFamily: "monospace", color: K.green, fontSize: "13px", marginBottom: "10px" }}>{token.senhaVPN}</div>
-          <div style={{ color: K.green, fontSize: "12px", fontWeight: "600", marginBottom: "10px" }}>🟢 Livre</div>
+          {/* ✅ NÃO mostrar login/senha quando estiver livre */}
+          <div style={{ color: K.green, fontSize: "12px", fontWeight: "600", marginBottom: "10px" }}>
+            🟢 Livre
+          </div>
+
+          {/* Consultor vê apenas o botão para reservar */}
           {!isAdmin && (
-            <button onClick={() => onReserve(token)} style={btn(K.green, { padding: "6px 14px", fontSize: "12px" })}>
-              🔐 Usar VPN
-            </button>
+            <>
+              <div style={{ color: K.dim, fontSize: "12px", marginBottom: "10px" }}>
+                🔒 Login e senha serão exibidos apenas enquanto você estiver usando a VPN.
+              </div>
+
+              <button
+                onClick={() => onReserve(token)}
+                style={btn(K.green, { padding: "6px 14px", fontSize: "12px" })}
+              >
+                🔐 Usar VPN
+              </button>
+            </>
           )}
+
+          {/* Admin: por segurança, também não mostra credenciais quando livre.
+              Se você quiser que admin veja quando livre, eu ajusto, mas sua regra atual é "só quando estiver usando". */}
         </>
       ) : (
         <>
           <div style={{ color: isWarning ? K.yellow : K.red, fontSize: "12px", fontWeight: "600", marginBottom: "6px" }}>
             🔴 Ocupado
           </div>
+
           <div style={{ fontSize: "12px", color: K.muted, marginBottom: "6px" }}>
             Por: <strong style={{ color: K.text }}>{consultant?.nome || "—"}</strong>
           </div>
+
           {rem !== null && (
-            <div style={{
-              fontFamily: "monospace", fontSize: "12px", marginBottom: "10px",
-              color: isExpired ? K.red : isWarning ? K.yellow : K.muted,
-            }}>
+            <div
+              style={{
+                fontFamily: "monospace",
+                fontSize: "12px",
+                marginBottom: "10px",
+                color: isExpired ? K.red : isWarning ? K.yellow : K.muted,
+              }}
+            >
               {isExpired ? "⚠️ EXPIRADO" : `⏱ ${fmtMs(rem)}`}
             </div>
           )}
+
+          {/* ✅ Só o consultor dono da sessão vê login/senha */}
+          {!isAdmin && isMyToken && (
+            <>
+              <div style={{ fontSize: "11px", color: K.dim, marginBottom: "2px" }}>Login VPN</div>
+              <div style={{ fontFamily: "monospace", color: K.green, fontSize: "13px", marginBottom: "8px" }}>
+                {token.loginVPN}
+              </div>
+
+              <div style={{ fontSize: "11px", color: K.dim, marginBottom: "2px" }}>Senha VPN</div>
+              <div style={{ fontFamily: "monospace", color: K.green, fontSize: "13px", marginBottom: "10px" }}>
+                {token.senhaVPN}
+              </div>
+            </>
+          )}
+
           {(isMyToken || isAdmin) && (
-            <button onClick={() => onRelease(token)} style={btn(K.red, { padding: "6px 14px", fontSize: "12px" })}>
+            <button
+              onClick={() => onRelease(token)}
+              style={btn(K.red, { padding: "6px 14px", fontSize: "12px" })}
+            >
               🔓 Liberar
             </button>
           )}
@@ -395,7 +534,7 @@ function OverviewTab({ data, onRelease }) {
               </div>
             ) : null}
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+            <div className="token-grid">
               {clientTokens.map((token) => {
                 const cons = data.consultants.find((c) => c.id === token.consultorId);
                 return (
@@ -437,6 +576,7 @@ function ClientsTab({ data, onSave, showToast, setConfirm }) {
     setConfirm({
       message: `Remover "${client.nome}" e todos os seus tokens e consultores?`,
       onConfirm: () => {
+        onSave("sapAccesses", (data.sapAccesses || []).filter((a) => a.clientId !== client.id));
         onSave("clients", data.clients.filter((c) => c.id !== client.id));
         onSave("tokens", data.tokens.filter((t) => t.clientId !== client.id));
         onSave("consultants", data.consultants.filter((c) => c.clientId !== client.id));
@@ -1193,17 +1333,6 @@ ws["!freeze"] = { xSplit: 0, ySplit: 1 };
         />
 
         <button
-          style={btn(K.dim, { padding: "8px 14px" })}
-          onClick={() => {
-            setFilterClient("");
-            setFilterCons("");
-          }}
-        >
-          Limpar
-        </button>
-
-        {/* Botão de exportação (ícone prancheta) */}
-        <button
           style={btn(K.blue, { padding: "8px 14px", display: "flex", alignItems: "center", gap: "8px" })}
           onClick={exportLogsToExcel}
           title="Extrair relatório"
@@ -1311,6 +1440,381 @@ ws["!freeze"] = { xSplit: 0, ySplit: 1 };
   );
 }
 
+function SapAccessesTab({ data, onSave, showToast, setConfirm, canEdit = true }) {
+  
+  const [clientId, setClientId] = useState(data.clients[0]?.id || "");
+  const [search, setSearch] = useState("");
+
+  const [form, setForm] = useState({ login: "", senha: "" });
+  const [showNew, setShowNew] = useState(false);
+
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ login: "", senha: "" });
+
+  // IDs que estão “visíveis” (olho aberto)
+  const [visibleIds, setVisibleIds] = useState(() => new Set());
+
+  useEffect(() => {
+    // se não tiver cliente selecionado e existir cliente, seta o primeiro
+    if (!clientId && data.clients.length > 0) {
+      setClientId(data.clients[0].id);
+    }
+  }, [data.clients, clientId]);
+
+  // --- Helpers (máscara / toggle)
+  const mask = (value) => (value ? "••••••••" : "—");
+  const isVisible = (id) => visibleIds.has(id);
+
+  const toggleVisible = (id) => {
+    setVisibleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // --- Lista filtrada
+  const list = (data.sapAccesses || [])
+    .filter((a) => a.clientId === clientId)
+    .filter((a) => {
+      const term = search.trim().toLowerCase();
+      if (!term) return true;
+      return (a.login || "").toLowerCase().includes(term);
+    });
+
+  // --- Ações (CRUD) - somente admin
+  const addAccess = () => {
+    if (!canEdit) return;
+
+    if (!clientId) {
+      showToast("Selecione um cliente.", "error");
+      return;
+    }
+    if (!form.login.trim() || !form.senha.trim()) {
+      showToast("Preencha login e senha.", "error");
+      return;
+    }
+
+    const newItem = {
+      id: "sa" + genId(),
+      clientId,
+      login: form.login.trim(),
+      senha: form.senha.trim(),
+    };
+
+    onSave("sapAccesses", [newItem, ...(data.sapAccesses || [])]);
+    setForm({ login: "", senha: "" });
+    setShowNew(false);
+    showToast("Acesso SAP adicionado!", "success");
+  };
+
+  const startEdit = (item) => {
+    if (!canEdit) return;
+    setEditingId(item.id);
+    setEditForm({ login: item.login || "", senha: item.senha || "" });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({ login: "", senha: "" });
+  };
+
+  const saveEdit = () => {
+    if (!canEdit) return;
+
+    if (!editForm.login.trim() || !editForm.senha.trim()) {
+      showToast("Preencha login e senha.", "error");
+      return;
+    }
+
+    const updated = (data.sapAccesses || []).map((a) =>
+      a.id === editingId
+        ? { ...a, login: editForm.login.trim(), senha: editForm.senha.trim() }
+        : a
+    );
+
+    onSave("sapAccesses", updated);
+    showToast("Acesso SAP atualizado!", "success");
+    cancelEdit();
+  };
+
+  const removeAccess = (item) => {
+    if (!canEdit) return;
+
+    setConfirm({
+      message: `Excluir o acesso SAP "${item.login}"?`,
+      onConfirm: () => {
+        onSave("sapAccesses", (data.sapAccesses || []).filter((a) => a.id !== item.id));
+        showToast("Acesso SAP removido.", "success");
+      },
+    });
+  };
+
+  const currentClient = data.clients.find((c) => c.id === clientId);
+
+  return (
+    <div>
+      {/* CARD: seleção de cliente + pesquisa + (admin) cadastro */}
+      <div
+        style={{
+          background: K.card,
+          borderRadius: "12px",
+          padding: "22px",
+          border: `1px solid ${K.border}`,
+          marginBottom: "20px",
+        }}
+      >
+        <h3 style={{ color: K.text, margin: "0 0 16px", fontSize: "15px" }}>
+          Acessos SAP
+        </h3>
+
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+          {/* Select Cliente (todos) */}
+          <div style={{ minWidth: "260px", flex: 1 }}>
+            <label
+              style={{
+                display: "block",
+                color: K.muted,
+                fontSize: "11px",
+                fontWeight: "700",
+                marginBottom: "6px",
+              }}
+            >
+              CLIENTE
+            </label>
+            <select
+              style={inp({ width: "100%" })}
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+            >
+              {data.clients.length === 0 ? (
+                <option value="">Nenhum cliente cadastrado</option>
+              ) : (
+                data.clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Pesquisa (todos) */}
+          <div style={{ minWidth: "260px", flex: 1 }}>
+            <label
+              style={{
+                display: "block",
+                color: K.muted,
+                fontSize: "11px",
+                fontWeight: "700",
+                marginBottom: "6px",
+              }}
+            >
+              PESQUISAR LOGIN
+            </label>
+            <input
+              style={inp({ width: "100%" })}
+              placeholder="🔍 Pesquisar por login SAP..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* (admin) Cadastro */}
+          {canEdit && (
+            <>
+              <div style={{ minWidth: "220px", flex: 1 }}>
+                <label
+                  style={{
+                    display: "block",
+                    color: K.muted,
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    marginBottom: "6px",
+                  }}
+                >
+                  LOGIN SAP
+                </label>
+                <input
+                  style={inp({ width: "100%" })}
+                  type={showNew ? "text" : "password"}
+                  placeholder="Ex: T3LUCASS"
+                  value={form.login}
+                  onChange={(e) => setForm((f) => ({ ...f, login: e.target.value }))}
+                />
+              </div>
+
+              <div style={{ minWidth: "220px", flex: 1 }}>
+                <label
+                  style={{
+                    display: "block",
+                    color: K.muted,
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    marginBottom: "6px",
+                  }}
+                >
+                  SENHA SAP
+                </label>
+                <input
+                  style={inp({ width: "100%" })}
+                  type={showNew ? "text" : "password"}
+                  placeholder="Ex: 12345"
+                  value={form.senha}
+                  onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
+                  onKeyDown={(e) => e.key === "Enter" && addAccess()}
+                />
+              </div>
+
+              <button style={btn(K.blue)} onClick={addAccess}>
+                + Adicionar Acesso
+              </button>
+            </>
+          )}
+        </div>
+
+        {currentClient && (
+          <div style={{ marginTop: "6px", color: K.dim, fontSize: "12px" }}>
+            Cliente selecionado:{" "}
+            <strong style={{ color: K.text }}>{currentClient.nome}</strong>
+          </div>
+        )}
+      </div>
+
+      {/* LISTA */}
+      <div
+        style={{
+          background: K.card,
+          borderRadius: "12px",
+          border: `1px solid ${K.border}`,
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "16px 22px", borderBottom: `1px solid ${K.border}` }}>
+          <span
+            style={{
+              color: K.muted,
+              fontSize: "12px",
+              fontWeight: "700",
+              letterSpacing: "0.06em",
+            }}
+          >
+            ACESSOS SAP ({list.length})
+          </span>
+        </div>
+
+        {data.clients.length === 0 ? (
+          <div style={{ padding: "30px", textAlign: "center", color: K.dim }}>
+            Cadastre um cliente primeiro na aba “Clientes”.
+          </div>
+        ) : list.length === 0 ? (
+          <div style={{ padding: "30px", textAlign: "center", color: K.dim }}>
+            Nenhum acesso SAP cadastrado para este cliente.
+          </div>
+        ) : (
+          list.map((item, i) => (
+            <div
+              key={item.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "14px 22px",
+                borderBottom: i < list.length - 1 ? `1px solid ${K.border}` : "none",
+                gap: "12px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: "320px" }}>
+                {editingId === item.id ? (
+                  // Edição (apenas admin entra aqui)
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                    <input
+                      style={inp({ width: "220px" })}
+                      type={isVisible(item.id) ? "text" : "password"}
+                      value={editForm.login}
+                      onChange={(e) => setEditForm((f) => ({ ...f, login: e.target.value }))}
+                    />
+                    <input
+                      style={inp({ width: "220px" })}
+                      type={isVisible(item.id) ? "text" : "password"}
+                      value={editForm.senha}
+                      onChange={(e) => setEditForm((f) => ({ ...f, senha: e.target.value }))}
+                    />
+                  </div>
+                ) : (
+                  // Visualização (todos)
+                  <>
+                    <div style={{ color: K.text, fontWeight: "700", fontSize: "14px" }}>
+                      login: {isVisible(item.id) ? item.login : mask(item.login)}
+                    </div>
+                    <div
+                      style={{
+                        color: K.dim,
+                        fontSize: "12px",
+                        marginTop: "2px",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      senha: {isVisible(item.id) ? item.senha : mask(item.senha)}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* OLHO (sempre aparece para todos) */}
+              <button
+                style={btn(K.dim, { padding: "6px 12px", fontSize: "12px" })}
+                onClick={() => toggleVisible(item.id)}
+                title={isVisible(item.id) ? "Ocultar" : "Mostrar"}
+              >
+                {isVisible(item.id) ? "👁️‍🗨️" : "👁️"}
+              </button>
+
+              {/* AÇÕES (somente admin) */}
+              {canEdit && (
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {editingId === item.id ? (
+                    <>
+                      <button
+                        style={btn(K.green, { padding: "6px 12px", fontSize: "12px" })}
+                        onClick={saveEdit}
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        style={btn(K.dim, { padding: "6px 12px", fontSize: "12px" })}
+                        onClick={cancelEdit}
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        style={btn(K.purple, { padding: "6px 12px", fontSize: "12px" })}
+                        onClick={() => startEdit(item)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        style={btn(K.red, { padding: "6px 12px", fontSize: "12px" })}
+                        onClick={() => removeAccess(item)}
+                      >
+                        Excluir
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({ data, user, onSave, onRelease, onLogout, showToast, setConfirm }) {
   const [tab, setTab] = useState("overview");
   const tabs = [
@@ -1319,6 +1823,7 @@ function AdminDashboard({ data, user, onSave, onRelease, onLogout, showToast, se
     { id: "tokens", label: "🔐 Tokens VPN" },
     { id: "consultants", label: "👥 Consultores" },
     { id: "logs", label: "📋 Logs" },
+    { id: "sap", label: "🧩 Acessos SAP" },
   ];
 
   return (
@@ -1352,16 +1857,32 @@ function AdminDashboard({ data, user, onSave, onRelease, onLogout, showToast, se
           {tab === "tokens" && <TokensTab data={data} onSave={onSave} showToast={showToast} setConfirm={setConfirm} />}
           {tab === "consultants" && <ConsultantsTab data={data} onSave={onSave} showToast={showToast} setConfirm={setConfirm} />}
           {tab === "logs" && <LogsTab data={data} />}
-        </div>
+          
+          {tab === "sap" && (
+            <SapAccessesTab
+            data={data}
+            onSave={onSave}
+            showToast={showToast}
+            setConfirm={setConfirm}          
+            />
+          )}
+          </div>
       </div>
     </>
   );
 }
 
-function ConsultantDashboard({ data, user, myConsultant, onRelease, onReserve, onLogout, showToast }) {
+function ConsultantDashboard({ data, user, myConsultant, onRelease, onRequestReserve, onLogout, showToast }) {
   const [search, setSearch] = useState("");
-  const filteredClients = data.clients.filter((c) => !search || c.nome.toLowerCase().includes(search.toLowerCase()));
-  const myActiveToken = data.tokens.find((t) => t.consultorId === myConsultant?.id && t.status === "ocupado");
+  const [tab, setTab] = useState("vpn");
+
+  const filteredClients = data.clients.filter(
+    (c) => !search || c.nome.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const myActiveToken = data.tokens.find(
+    (t) => t.consultorId === myConsultant?.id && t.status === "ocupado"
+  );
 
   const handleReserve = (token) => {
     if (!myConsultant) {
@@ -1372,99 +1893,219 @@ function ConsultantDashboard({ data, user, myConsultant, onRelease, onReserve, o
       showToast("Você já possui uma VPN ativa. Libere-a antes de usar outra.", "error");
       return;
     }
-    onReserve(token, myConsultant.id);
-    showToast(`VPN reservada! Login: ${token.loginVPN}`, "success");
+      onRequestReserve(token, myConsultant.id);
+      showToast("Selecione o tempo de uso da VPN.", "info");
   };
 
   return (
     <>
       <Navbar user={user} onLogout={onLogout} />
+
+      {/* Barra de abas do consultor */}
+      <div
+        style={{
+          background: K.card,
+          borderBottom: `1px solid ${K.border}`,
+          display: "flex",
+          overflowX: "auto",
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={() => setTab("vpn")}
+          style={{
+            background: "none",
+            border: "none",
+            color: tab === "vpn" ? K.blue : K.muted,
+            padding: "15px 20px",
+            cursor: "pointer",
+            fontSize: "13px",
+            fontWeight: tab === "vpn" ? "700" : "400",
+            borderBottom: tab === "vpn" ? `2px solid ${K.blue}` : "2px solid transparent",
+            whiteSpace: "nowrap",
+          }}
+        >
+          🔐 Tokens VPN
+        </button>
+
+        <button
+          onClick={() => setTab("sap")}
+          style={{
+            background: "none",
+            border: "none",
+            color: tab === "sap" ? K.blue : K.muted,
+            padding: "15px 20px",
+            cursor: "pointer",
+            fontSize: "13px",
+            fontWeight: tab === "sap" ? "700" : "400",
+            borderBottom: tab === "sap" ? `2px solid ${K.blue}` : "2px solid transparent",
+            whiteSpace: "nowrap",
+          }}
+        >
+          🧩 Acessos SAP
+        </button>
+      </div>
+
       <div style={{ flex: 1, overflow: "auto", padding: "24px" }}>
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-          {myActiveToken && (() => {
-            const client = data.clients.find((c) => c.id === myActiveToken.clientId);
-            return (
-              <div style={{
-                background: "rgba(16,185,129,0.1)", border: `1px solid ${K.green}`,
-                borderRadius: "12px", padding: "16px 22px", marginBottom: "20px",
-                display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap",
-              }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: K.green, fontWeight: "700", fontSize: "14px", marginBottom: "4px" }}>
-                    🔐 Minha VPN Ativa
-                  </div>
-                  <div style={{ color: K.muted, fontSize: "13px" }}>
-                    {myActiveToken.nome} · {client?.nome} · Login: <span style={{ fontFamily: "monospace", color: K.text }}>{myActiveToken.loginVPN}</span>
-                  </div>
-                </div>
-                <button onClick={() => onRelease(myActiveToken, "Liberado pelo consultor")} style={btn(K.red, { padding: "8px 18px" })}>
-                  🔓 Liberar VPN
-                </button>
-              </div>
-            );
-          })()}
+          {/* ✅ Aba VPN (conteúdo atual) */}
+          {tab === "vpn" && (
+            <>
+              {myActiveToken &&
+                (() => {
+                  const client = data.clients.find((c) => c.id === myActiveToken.clientId);
+                  return (
+                    <div
+                      style={{
+                        background: "rgba(16,185,129,0.1)",
+                        border: `1px solid ${K.green}`,
+                        borderRadius: "12px",
+                        padding: "16px 22px",
+                        marginBottom: "20px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "16px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            color: K.green,
+                            fontWeight: "700",
+                            fontSize: "14px",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          🔐 Minha VPN Ativa
+                        </div>
+                        <div style={{ color: K.muted, fontSize: "13px" }}>
+                          {myActiveToken.nome} · {client?.nome} · Login:{" "}
+                          <span style={{ fontFamily: "monospace", color: K.text }}>
+                            {myActiveToken.loginVPN}
+                          </span>
+                        </div>
+                      </div>
 
-          <div style={{ marginBottom: "20px" }}>
-            <input
-              style={inp({ width: "100%", maxWidth: "360px" })}
-              placeholder="🔍 Pesquisar por nome do cliente..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+                      <button
+                        onClick={() => onRelease(myActiveToken, "Liberado pelo consultor")}
+                        style={btn(K.red, { padding: "8px 18px" })}
+                      >
+                        🔓 Liberar VPN
+                      </button>
+                    </div>
+                  );
+                })()}
+
+              <div style={{ marginBottom: "20px" }}>
+                <input
+                  style={inp({ width: "100%", maxWidth: "360px" })}
+                  placeholder="🔍 Pesquisar por nome do cliente..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+
+              {filteredClients.map((client) => {
+                const clientTokens = data.tokens.filter((t) => t.clientId === client.id);
+                const freeCount = clientTokens.filter((t) => t.status === "livre").length;
+
+                return (
+                  <div
+                    key={client.id}
+                    style={{
+                      background: K.card,
+                      borderRadius: "12px",
+                      padding: "22px",
+                      border: `1px solid ${K.border}`,
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        marginBottom: "16px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span style={{ color: K.text, fontWeight: "700", fontSize: "15px" }}>
+                        🏢 {client.nome}
+                      </span>
+
+                      {freeCount === 0 && clientTokens.length > 0 ? (
+                        <span
+                          style={{
+                            background: "rgba(239,68,68,0.15)",
+                            color: K.red,
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            padding: "3px 10px",
+                            borderRadius: "99px",
+                          }}
+                        >
+                          🔴 Todas as VPNs estão em uso
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            background: "rgba(16,185,129,0.15)",
+                            color: K.green,
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            padding: "3px 10px",
+                            borderRadius: "99px",
+                          }}
+                        >
+                          {freeCount} livre{freeCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+
+                    {clientTokens.length === 0 ? (
+                      <p style={{ color: K.dim, margin: 0, fontSize: "13px" }}>
+                        Nenhum token cadastrado.
+                      </p>
+                    ) : (
+                      <div className="token-grid">
+                        {clientTokens.map((token) => {
+                          const cons = data.consultants.find((c) => c.id === token.consultorId);
+                          return (
+                            <TokenCard
+                              key={token.id}
+                              token={token}
+                              consultant={cons}
+                              myConsultorId={myConsultant?.id}
+                              isAdmin={false}
+                              onReserve={handleReserve}
+                              onRelease={(t) => onRelease(t, "Liberado pelo consultor")}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {filteredClients.length === 0 && (
+                <div style={{ textAlign: "center", padding: "60px 20px", color: K.dim }}>
+                  Nenhum cliente encontrado.
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ✅ Aba SAP (consultor: somente visualizar/pesquisar + olho) */}
+          {tab === "sap" && (
+            <SapAccessesTab
+              data={data}
+              onSave={() => {}}
+              showToast={showToast}
+              setConfirm={() => {}}
+              canEdit={false}
             />
-          </div>
-
-          {filteredClients.map((client) => {
-            const clientTokens = data.tokens.filter((t) => t.clientId === client.id);
-            const freeCount = clientTokens.filter((t) => t.status === "livre").length;
-
-            return (
-              <div key={client.id} style={{
-                background: K.card, borderRadius: "12px", padding: "22px",
-                border: `1px solid ${K.border}`, marginBottom: "16px",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
-                  <span style={{ color: K.text, fontWeight: "700", fontSize: "15px" }}>🏢 {client.nome}</span>
-                  {freeCount === 0 && clientTokens.length > 0 ? (
-                    <span style={{
-                      background: "rgba(239,68,68,0.15)", color: K.red,
-                      fontSize: "11px", fontWeight: "700", padding: "3px 10px", borderRadius: "99px",
-                    }}>🔴 Todas as VPNs estão em uso</span>
-                  ) : (
-                    <span style={{
-                      background: "rgba(16,185,129,0.15)", color: K.green,
-                      fontSize: "11px", fontWeight: "700", padding: "3px 10px", borderRadius: "99px",
-                    }}>{freeCount} livre{freeCount !== 1 ? "s" : ""}</span>
-                  )}
-                </div>
-
-                {clientTokens.length === 0 ? (
-                  <p style={{ color: K.dim, margin: 0, fontSize: "13px" }}>Nenhum token cadastrado.</p>
-                ) : (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
-                    {clientTokens.map((token) => {
-                      const cons = data.consultants.find((c) => c.id === token.consultorId);
-                      return (
-                        <TokenCard
-                          key={token.id}
-                          token={token}
-                          consultant={cons}
-                          myConsultorId={myConsultant?.id}
-                          isAdmin={false}
-                          onReserve={handleReserve}
-                          onRelease={(t) => onRelease(t, "Liberado pelo consultor")}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {filteredClients.length === 0 && (
-            <div style={{ textAlign: "center", padding: "60px 20px", color: K.dim }}>
-              Nenhum cliente encontrado.
-            </div>
           )}
         </div>
       </div>
@@ -1474,45 +2115,90 @@ function ConsultantDashboard({ data, user, myConsultant, onRelease, onReserve, o
 
 export default function App() {
   const [ready, setReady] = useState(false);
-  const [data, setData] = useState({ clients: [], tokens: [], consultants: [], users: [], logs: [] });
+  const [data, setData] = useState({
+    clients: [],
+    tokens: [],
+    consultants: [],
+    users: [],
+    logs: [],
+    sapAccesses: [],
+  });
+
   const [user, setUser] = useState(null);
-  const [warnToken, setWarnToken] = useState(null);
   const [toast, setToast] = useState(null);
   const [confirm, setConfirm] = useState(null);
 
+  // Aviso últimos 5 min
+  const [warnToken, setWarnToken] = useState(null);
   const seenWarns = useRef(new Set());
-  const dataRef = useRef(data);
 
+  // Modal de duração (reservar/renovar)
+  const [durationModal, setDurationModal] = useState(null);
+  // { mode: "reserve" | "renew", tokenId, consultorId, initialMinutes }
+
+  const dataRef = useRef(data);
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
 
+  // Toast helper
+  const showToast = useCallback((message, type = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  // Persist helper
+  const saveKey = useCallback(async (key, val) => {
+  await db.set(key, val);
+  setData((p) => ({ ...p, [key]: val }));
+}, []);
+
+
+  // ---- INIT DB
   useEffect(() => {
     (async () => {
-      const init = await db.get("init");
-      if (!init) {
-        await Promise.all([
-          db.set("clients", SEED.clients), db.set("tokens", SEED.tokens),
-          db.set("consultants", SEED.consultants), db.set("users", SEED.users),
-          db.set("logs", SEED.logs), db.set("init", 1),
-        ]);
+      try {
+        const init = await db.get("init");
+        if (!init) {
+          await Promise.all([
+            db.set("clients", SEED.clients),
+            db.set("tokens", SEED.tokens),
+            db.set("consultants", SEED.consultants),
+            db.set("users", SEED.users),
+            db.set("sapAccesses", SEED.sapAccesses),
+            db.set("logs", SEED.logs),
+            db.set("init", 1),
+          ]);
+          setData(SEED);
+        } else {
+          const [cl, tk, cn, us, lg, sa] = await Promise.all([
+            db.get("clients"),
+            db.get("tokens"),
+            db.get("consultants"),
+            db.get("users"),
+            db.get("logs"),
+            db.get("sapAccesses"),
+          ]);
+
+          setData({
+            clients: cl || SEED.clients,
+            tokens: tk || SEED.tokens,
+            consultants: cn || SEED.consultants,
+            users: us || SEED.users,
+            logs: lg || SEED.logs,
+            sapAccesses: sa || SEED.sapAccesses,
+          });
+        }
+      } catch (e) {
+        console.error("Falha ao inicializar dados:", e);
         setData(SEED);
-      } else {
-        const [cl, tk, cn, us, lg] = await Promise.all([
-          db.get("clients"), db.get("tokens"), db.get("consultants"), db.get("users"), db.get("logs"),
-        ]);
-        setData({
-          clients: cl || SEED.clients,
-          tokens: tk || SEED.tokens,
-          consultants: cn || SEED.consultants,
-          users: us || SEED.users,
-          logs: lg || SEED.logs,
-        });
+      } finally {
+        setReady(true);
       }
-      setReady(true);
     })();
   }, []);
 
+  // Atualização periódica (tokens/logs)
   useEffect(() => {
     if (!ready) return;
     const id = setInterval(async () => {
@@ -1522,129 +2208,249 @@ export default function App() {
     return () => clearInterval(id);
   }, [ready]);
 
+  // ---- RELEASE (manual)
+  const doRelease = useCallback(
+    async (token, motivo = "Liberado manualmente") => {
+      const nowIso = new Date().toISOString();
+      const { tokens, logs } = dataRef.current;
+
+      const newLog = {
+        id: genId(),
+        tokenId: token.id,
+        tokenNome: token.nome,
+        clientId: token.clientId,
+        consultorId: token.consultorId,
+        inicio: token.startTime ? new Date(token.startTime).toISOString() : null,
+        fim: nowIso,
+        motivo,
+      };
+
+      const newTokens = tokens.map((t) =>
+        t.id === token.id
+          ? { ...t, status: "livre", consultorId: null, startTime: null, durationMs: null, expiresAt: null }
+          : t
+      );
+
+      const newLogs = [newLog, ...logs];
+
+      await db.set("tokens", newTokens);
+      await db.set("logs", newLogs);
+      setData((p) => ({ ...p, tokens: newTokens, logs: newLogs }));
+
+      seenWarns.current.delete(token.id);
+      setWarnToken(null);
+
+      showToast("VPN liberada.", "success");
+    },
+    [showToast]
+  );
+
+  // ---- RESERVE / RENEW (com duração)
+  const doReserve = useCallback(async (token, consultorId, durationMs) => {
+    const { tokens } = dataRef.current;
+    const now = Date.now();
+    const expiresAt = now + durationMs;
+
+    const newTokens = tokens.map((t) =>
+      t.id === token.id ? { ...t, status: "ocupado", consultorId, startTime: now, durationMs, expiresAt } : t
+    );
+
+    await db.set("tokens", newTokens);
+    setData((p) => ({ ...p, tokens: newTokens }));
+  }, []);
+
+  const doRenew = useCallback(async (tokenId, durationMs) => {
+    const { tokens } = dataRef.current;
+    const now = Date.now();
+    const expiresAt = now + durationMs;
+
+    const newTokens = tokens.map((t) => (t.id === tokenId ? { ...t, startTime: now, durationMs, expiresAt } : t));
+
+    await db.set("tokens", newTokens);
+    setData((p) => ({ ...p, tokens: newTokens }));
+  }, []);
+
+  // ---- Duration modal helpers
+  const minutesToMs = useCallback((m) => Math.max(MIN_MS, Math.min(MAX_MS, m * 60 * 1000)), []);
+
+  const openReserveDuration = useCallback((token, consultorId) => {
+    setDurationModal({ mode: "reserve", tokenId: token.id, consultorId, initialMinutes: 120 });
+  }, []);
+
+  const openRenewDuration = useCallback((token) => {
+    setDurationModal({ mode: "renew", tokenId: token.id, consultorId: token.consultorId, initialMinutes: 120 });
+  }, []);
+
+  const confirmDuration = useCallback(
+    async (minutes) => {
+      const modal = durationModal;
+      if (!modal) return;
+
+      const durationMs = minutesToMs(minutes);
+
+      if (modal.mode === "reserve") {
+        const token = dataRef.current.tokens.find((t) => t.id === modal.tokenId);
+        if (!token) return;
+        await doReserve(token, modal.consultorId, durationMs);
+        showToast(`VPN reservada por ${minutes} min.`, "success");
+      } else {
+        await doRenew(modal.tokenId, durationMs);
+        showToast(`VPN renovada por ${minutes} min.`, "success");
+      }
+
+      // permite avisar novamente no próximo ciclo
+      seenWarns.current.delete(modal.tokenId);
+      setWarnToken(null);
+      setDurationModal(null);
+    },
+    [durationModal, minutesToMs, doReserve, doRenew, showToast]
+  );
+
+  // ---- WARN nos últimos 5 min (somente consultor, somente token dele)
   useEffect(() => {
     if (!user || user.role !== "consultant") return;
     const myId = user.consultorId;
 
-    const check = () => {
-      const { tokens, logs } = dataRef.current;
+    const checkWarn = () => {
+      const { tokens } = dataRef.current;
       const now = Date.now();
-      let needsUpdate = false;
 
-      const newTokens = tokens.map((t) => {
-        if (t.status !== "ocupado" || !t.startTime) return t;
-        const rem = TWO_H - (now - t.startTime);
+      const myToken = tokens.find((t) => t.status === "ocupado" && t.consultorId === myId && t.expiresAt);
+      if (!myToken) return;
 
-        if (t.consultorId === myId && rem <= WARN_T && rem > 0 && !seenWarns.current.has(t.id)) {
-          seenWarns.current.add(t.id);
-          setWarnToken(t);
-        }
+      const rem = myToken.expiresAt - now;
 
-        if (rem <= -WARN_T) {
-          needsUpdate = true;
-          const newLog = {
-            id: genId(), tokenId: t.id, tokenNome: t.nome, clientId: t.clientId,
-            consultorId: t.consultorId,
-            inicio: new Date(t.startTime).toISOString(),
-            fim: new Date(now).toISOString(), motivo: "Tempo expirado automaticamente",
-          };
-          const newLogs = [newLog, ...logs];
-          db.set("logs", newLogs);
-          setData((p) => ({ ...p, logs: newLogs }));
-          seenWarns.current.delete(t.id);
-          if (warnToken?.id === t.id) setWarnToken(null);
-          return { ...t, status: "livre", consultorId: null, startTime: null };
-        }
-
-        return t;
-      });
-
-      if (needsUpdate) {
-        db.set("tokens", newTokens);
-        setData((p) => ({ ...p, tokens: newTokens }));
+      if (rem > 0 && rem <= WARN_MS && !seenWarns.current.has(myToken.id)) {
+        seenWarns.current.add(myToken.id);
+        setWarnToken(myToken);
       }
     };
 
-    check();
-    const id = setInterval(check, 15000);
+    checkWarn();
+    const id = setInterval(checkWarn, 5000);
     return () => clearInterval(id);
-  }, [user, warnToken]);
+  }, [user]);
 
-  const showToast = useCallback((message, type = "info") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  }, []);
+  // ---- Expiração global: quando acabar o tempo, libera automaticamente e loga
+  useEffect(() => {
+    if (!ready) return;
 
-  const saveKey = useCallback(async (key, val) => {
-    await db.set(key, val);
-    setData((p) => ({ ...p, [key]: val }));
-  }, []);
+    const id = setInterval(async () => {
+      const { tokens, logs } = dataRef.current;
+      const now = Date.now();
 
-  const doRelease = useCallback(async (token, motivo = "Liberado manualmente") => {
-    const now = new Date().toISOString();
-    const { tokens, logs } = dataRef.current;
-    const newLog = {
-      id: genId(), tokenId: token.id, tokenNome: token.nome, clientId: token.clientId,
-      consultorId: token.consultorId,
-      inicio: token.startTime ? new Date(token.startTime).toISOString() : null,
-      fim: now, motivo,
-    };
-    const newTokens = tokens.map((t) => t.id === token.id ? { ...t, status: "livre", consultorId: null, startTime: null } : t);
-    const newLogs = [newLog, ...logs];
-    await db.set("tokens", newTokens);
-    await db.set("logs", newLogs);
-    setData((p) => ({ ...p, tokens: newTokens, logs: newLogs }));
-    seenWarns.current.delete(token.id);
-    if (warnToken?.id === token.id) setWarnToken(null);
-    showToast("VPN liberada.", "success");
-  }, [warnToken, showToast]);
+      let changed = false;
+      let newLogs = logs;
 
-  const doReserve = useCallback(async (token, consultorId) => {
-    const { tokens } = dataRef.current;
-    const newTokens = tokens.map((t) => t.id === token.id ? { ...t, status: "ocupado", consultorId, startTime: Date.now() } : t);
-    await db.set("tokens", newTokens);
-    setData((p) => ({ ...p, tokens: newTokens }));
-  }, []);
+      const newTokens = tokens.map((t) => {
+        if (t.status !== "ocupado") return t;
 
-  const doExtend = useCallback(async (token) => {
-    const { tokens } = dataRef.current;
-    const newTokens = tokens.map((t) => t.id === token.id ? { ...t, startTime: Date.now() } : t);
-    await db.set("tokens", newTokens);
-    setData((p) => ({ ...p, tokens: newTokens }));
-    seenWarns.current.delete(token.id);
-    setWarnToken(null);
-    showToast("Sessão estendida por mais 2 horas!", "success");
-  }, [showToast]);
+        // migração segura (se existir token antigo sem expiresAt)
+        const effectiveExpiresAt =
+          t.expiresAt || (t.startTime ? t.startTime + (t.durationMs || MAX_MS) : null);
 
+        if (!effectiveExpiresAt) return t;
+
+        if (!t.expiresAt && effectiveExpiresAt) {
+          changed = true;
+          return { ...t, expiresAt: effectiveExpiresAt };
+        }
+
+        if (now < effectiveExpiresAt) return t;
+
+        changed = true;
+
+        const log = {
+          id: genId(),
+          tokenId: t.id,
+          tokenNome: t.nome,
+          clientId: t.clientId,
+          consultorId: t.consultorId,
+          inicio: t.startTime ? new Date(t.startTime).toISOString() : null,
+          fim: new Date(now).toISOString(),
+          motivo: "Tempo expirado automaticamente",
+        };
+
+        newLogs = [log, ...newLogs];
+
+        return { ...t, status: "livre", consultorId: null, startTime: null, durationMs: null, expiresAt: null };
+      });
+
+      if (changed) {
+        await db.set("tokens", newTokens);
+        await db.set("logs", newLogs);
+        setData((p) => ({ ...p, tokens: newTokens, logs: newLogs }));
+        setWarnToken(null);
+      }
+    }, 10000);
+
+    return () => clearInterval(id);
+  }, [ready]);
+
+  // ---- Modal state derived
   const currentWarnToken = warnToken ? data.tokens.find((t) => t.id === warnToken.id) : null;
   const showWarn = currentWarnToken?.status === "ocupado";
-  const myConsultant = user?.role === "consultant" ? data.consultants.find((c) => c.id === user.consultorId) : null;
+  const remainingWarnMs = (currentWarnToken?.expiresAt || 0) - Date.now();
+
+  const myConsultant =
+    user?.role === "consultant" ? data.consultants.find((c) => c.id === user.consultorId) : null;
 
   if (!ready) {
     return (
-      <div style={{
-        height: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        background: K.bg, color: K.muted, fontFamily: "sans-serif", fontSize: "15px",
-      }}>
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: K.bg,
+          color: K.muted,
+          fontFamily: "sans-serif",
+          fontSize: "15px",
+        }}
+      >
         Carregando...
       </div>
     );
   }
 
   return (
-    <div style={{
-      height: "100vh", display: "flex", flexDirection: "column",
-      background: K.bg, fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
-      position: "relative", overflow: "hidden",
-    }}>
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        background: K.bg,
+        fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
       {toast && <Toast toast={toast} />}
-      {showWarn && (
+
+      {/* Aviso últimos 5 min (Renovar/Fechar) */}
+      {showWarn && remainingWarnMs > 0 && (
         <WarningModal
           token={currentWarnToken}
-          onExtend={() => doExtend(currentWarnToken)}
-          onRelease={() => doRelease(currentWarnToken, "Sessão encerrada — tempo expirado")}
+          remainingMs={remainingWarnMs}
+          onRenew={() => {
+            setWarnToken(null);
+            openRenewDuration(currentWarnToken);
+          }}
+          onClose={() => setWarnToken(null)}
         />
       )}
+
+      {/* Modal de duração (serve para reservar e renovar) */}
+      {durationModal && (
+        <DurationModal
+          title={durationModal.mode === "reserve" ? "Definir tempo de uso da VPN" : "Renovar tempo de VPN"}
+          initialMinutes={durationModal.initialMinutes || 120}
+          onCancel={() => setDurationModal(null)}
+          onConfirm={confirmDuration}
+        />
+      )}
+
       {confirm && (
         <ConfirmModal
           message={confirm.message}
@@ -1674,7 +2480,7 @@ export default function App() {
           user={user}
           myConsultant={myConsultant}
           onRelease={doRelease}
-          onReserve={doReserve}
+          onRequestReserve={openReserveDuration}
           onLogout={() => setUser(null)}
           showToast={showToast}
         />
