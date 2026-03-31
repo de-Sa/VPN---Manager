@@ -1085,7 +1085,7 @@ function LogsTab({ data }) {
     }
 
     // Import dinâmico pra não pesar o bundle
-    const XLSXMod = await import("xlsx");
+    const XLSXMod = await import("xlsx-js-style");
     const XLSX = XLSXMod?.default ?? XLSXMod;
 
     const rows = filtered.map((log) => {
@@ -1106,6 +1106,54 @@ function LogsTab({ data }) {
     const headers = ["Token", "Cliente", "Consultor", "Inicio", "Fim", "Duração", "Motivo"];
 
     const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1:G1");
+
+      // Bordas em todas as direções (thin)
+      const borderAllThin = {
+      top: { style: "thin", color: { rgb: "334155" } },
+      bottom: { style: "thin", color: { rgb: "334155" } },
+      left: { style: "thin", color: { rgb: "334155" } },
+      right: { style: "thin", color: { rgb: "334155" } },
+      };
+
+      // Cabeçalho (linha 1 => r:0)
+      for (let C = range.s.c; C <= range.e.c; C++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
+      if (!ws[cellAddr]) continue;
+
+      ws[cellAddr].s = {
+        fill: { patternType: "solid", fgColor: { rgb: "1E3A8A" } }, // Azul escuro
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        alignment: { vertical: "center", horizontal: "center" },
+        border: borderAllThin,
+      };
+    }
+
+// Bordas + alinhamento nas células com conteúdo
+for (let R = range.s.r; R <= range.e.r; R++) {
+  for (let C = range.s.c; C <= range.e.c; C++) {
+    const cellAddr = XLSX.utils.encode_cell({ r: R, c: C });
+    const cell = ws[cellAddr];
+    if (!cell) continue;
+
+    cell.s = cell.s || {};
+    cell.s.border = borderAllThin;
+
+    // Dados (não cabeçalho)
+    if (R !== 0) {
+      cell.s.alignment = { vertical: "center", horizontal: "left", wrapText: true };
+    }
+  }
+}
+
+// (Opcional) Altura do cabeçalho
+ws["!rows"] = ws["!rows"] || [];
+ws["!rows"][0] = { hpt: 20 };
+
+// (Opcional) Congelar primeira linha
+ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+
     ws["!cols"] = [
       { wch: 18 }, // Token
       { wch: 22 }, // Cliente
@@ -1160,7 +1208,7 @@ function LogsTab({ data }) {
           onClick={exportLogsToExcel}
           title="Extrair relatório"
         >
-          📋 Extrair relatório
+          📋
         </button>
       </div>
 
