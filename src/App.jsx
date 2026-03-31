@@ -1068,31 +1068,143 @@ function LogsTab({ data }) {
   const filtered = data.logs.filter((log) => {
     const client = data.clients.find((c) => c.id === log.clientId);
     const cons = data.consultants.find((c) => c.id === log.consultorId);
-    const matchClient = !filterClient || client?.nome.toLowerCase().includes(filterClient.toLowerCase());
-    const matchCons = !filterCons || cons?.nome.toLowerCase().includes(filterCons.toLowerCase());
+
+    const matchClient =
+      !filterClient || client?.nome.toLowerCase().includes(filterClient.toLowerCase());
+
+    const matchCons =
+      !filterCons || cons?.nome.toLowerCase().includes(filterCons.toLowerCase());
+
     return matchClient && matchCons;
   });
+
+  const exportLogsToExcel = async () => {
+    if (filtered.length === 0) {
+      alert("Nenhum registro encontrado para exportar.");
+      return;
+    }
+
+    // Import dinâmico pra não pesar o bundle
+    const XLSXMod = await import("xlsx");
+    const XLSX = XLSXMod?.default ?? XLSXMod;
+
+    const rows = filtered.map((log) => {
+      const client = data.clients.find((c) => c.id === log.clientId);
+      const cons = data.consultants.find((c) => c.id === log.consultorId);
+
+      return {
+        Token: log.tokenNome ?? "",
+        Cliente: client?.nome ?? "—",
+        Consultor: cons?.nome ?? "—",
+        Inicio: fmtDate(log.inicio),
+        Fim: fmtDate(log.fim),
+        "Duração": fmtDur(log.inicio, log.fim),
+        Motivo: log.motivo ?? "",
+      };
+    });
+
+    const headers = ["Token", "Cliente", "Consultor", "Inicio", "Fim", "Duração", "Motivo"];
+
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+    ws["!cols"] = [
+      { wch: 18 }, // Token
+      { wch: 22 }, // Cliente
+      { wch: 22 }, // Consultor
+      { wch: 22 }, // Inicio
+      { wch: 22 }, // Fim
+      { wch: 14 }, // Duração
+      { wch: 40 }, // Motivo
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Logs");
+
+    const now = new Date();
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const filename = `relatorio-logs_${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(
+      now.getDate()
+    )}_${pad2(now.getHours())}${pad2(now.getMinutes())}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
+  };
 
   return (
     <div>
       <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <input style={inp({ width: "220px" })} placeholder="🔍 Filtrar por cliente..." value={filterClient} onChange={(e) => setFilterClient(e.target.value)} />
-        <input style={inp({ width: "220px" })} placeholder="🔍 Filtrar por consultor..." value={filterCons} onChange={(e) => setFilterCons(e.target.value)} />
-        <button style={btn(K.dim, { padding: "8px 14px" })} onClick={() => { setFilterClient(""); setFilterCons(""); }}>Limpar</button>
+        <input
+          style={inp({ width: "220px" })}
+          placeholder="🔍 Filtrar por cliente..."
+          value={filterClient}
+          onChange={(e) => setFilterClient(e.target.value)}
+        />
+        <input
+          style={inp({ width: "220px" })}
+          placeholder="🔍 Filtrar por consultor..."
+          value={filterCons}
+          onChange={(e) => setFilterCons(e.target.value)}
+        />
+
+        <button
+          style={btn(K.dim, { padding: "8px 14px" })}
+          onClick={() => {
+            setFilterClient("");
+            setFilterCons("");
+          }}
+        >
+          Limpar
+        </button>
+
+        {/* Botão de exportação (ícone prancheta) */}
+        <button
+          style={btn(K.blue, { padding: "8px 14px", display: "flex", alignItems: "center", gap: "8px" })}
+          onClick={exportLogsToExcel}
+          title="Extrair relatório"
+        >
+          📋 Extrair relatório
+        </button>
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ background: K.card, borderRadius: "12px", padding: "40px", textAlign: "center", color: K.dim, border: `1px solid ${K.border}` }}>
+        <div
+          style={{
+            background: K.card,
+            borderRadius: "12px",
+            padding: "40px",
+            textAlign: "center",
+            color: K.dim,
+            border: `1px solid ${K.border}`,
+          }}
+        >
           Nenhum registro encontrado.
         </div>
       ) : (
-        <div style={{ background: K.card, borderRadius: "12px", border: `1px solid ${K.border}`, overflow: "hidden" }}>
+        <div
+          style={{
+            background: K.card,
+            borderRadius: "12px",
+            border: `1px solid ${K.border}`,
+            overflow: "hidden",
+          }}
+        >
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${K.border}` }}>
                   {["Token", "Cliente", "Consultor", "Início", "Fim", "Duração", "Motivo"].map((h) => (
-                    <th key={h} style={{ padding: "12px 16px", textAlign: "left", color: K.muted, fontWeight: "700", fontSize: "11px", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{h.toUpperCase()}</th>
+                    <th
+                      key={h}
+                      style={{
+                        padding: "12px 16px",
+                        textAlign: "left",
+                        color: K.muted,
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        letterSpacing: "0.06em",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {h.toUpperCase()}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -1100,15 +1212,45 @@ function LogsTab({ data }) {
                 {filtered.map((log, i) => {
                   const client = data.clients.find((c) => c.id === log.clientId);
                   const cons = data.consultants.find((c) => c.id === log.consultorId);
+
                   return (
-                    <tr key={log.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${K.border}` : "none" }}>
-                      <td style={{ padding: "12px 16px", color: K.text, fontWeight: "600" }}>{log.tokenNome}</td>
+                    <tr
+                      key={log.id}
+                      style={{
+                        borderBottom: i < filtered.length - 1 ? `1px solid ${K.border}` : "none",
+                      }}
+                    >
+                      <td style={{ padding: "12px 16px", color: K.text, fontWeight: "600" }}>
+                        {log.tokenNome}
+                      </td>
                       <td style={{ padding: "12px 16px", color: K.muted }}>{client?.nome || "—"}</td>
                       <td style={{ padding: "12px 16px", color: K.muted }}>{cons?.nome || "—"}</td>
-                      <td style={{ padding: "12px 16px", color: K.muted, fontFamily: "monospace", whiteSpace: "nowrap" }}>{fmtDate(log.inicio)}</td>
-                      <td style={{ padding: "12px 16px", color: K.muted, fontFamily: "monospace", whiteSpace: "nowrap" }}>{fmtDate(log.fim)}</td>
-                      <td style={{ padding: "12px 16px", color: K.blue }}>{fmtDur(log.inicio, log.fim)}</td>
-                      <td style={{ padding: "12px 16px", color: K.dim, fontSize: "12px" }}>{log.motivo}</td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          color: K.muted,
+                          fontFamily: "monospace",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {fmtDate(log.inicio)}
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          color: K.muted,
+                          fontFamily: "monospace",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {fmtDate(log.fim)}
+                      </td>
+                      <td style={{ padding: "12px 16px", color: K.blue }}>
+                        {fmtDur(log.inicio, log.fim)}
+                      </td>
+                      <td style={{ padding: "12px 16px", color: K.dim, fontSize: "12px" }}>
+                        {log.motivo}
+                      </td>
                     </tr>
                   );
                 })}
