@@ -306,43 +306,109 @@ function Navbar({ user, onLogout }) {
   );
 }
 
-function LoginPage({ users, onLogin }) {
+function LoginPage({ users, onLogin, onClearLogs }) {
   const [form, setForm] = useState({ username: "", password: "" });
   const [err, setErr] = useState("");
 
   const upd = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submit = () => {
-    const u = users.find((u) => u.username === form.username.trim() && u.password === form.password);
+    const u = users.find(
+      (u) => u.username === form.username.trim() && u.password === form.password
+    );
     if (u) onLogin(u);
     else setErr("Usuário ou senha incorretos.");
   };
 
   return (
-    <div style={{
-      flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-      padding: "20px",
-    }}>
-      <div style={{
-        background: K.card, borderRadius: "20px", padding: "48px 40px",
-        width: "100%", maxWidth: "400px", border: `1px solid ${K.border}`,
-      }}>
-        
-<div style={{ textAlign: "center", marginBottom: "36px" }}>
-  <div style={{ fontSize: "52px", marginBottom: "12px" }}>🛡️</div>
-  <h1 style={{ color: K.text, margin: "0 0 6px", fontSize: "24px", fontWeight: "700" }}>
-    VPN Manager
-  </h1>
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+        position: "relative", // ✅ importante para o absolute funcionar
+      }}
+    >
+      {/* ✅ Aviso do protótipo + botão (área vermelha) */}
+      <div
+        style={{
+          position: "absolute",
+          top: "90px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(820px, 92vw)",
+          background: "rgba(30, 41, 59, 0.65)",
+          border: `1px solid ${K.border}`,
+          borderRadius: "14px",
+          padding: "12px 14px",
+          display: "flex",
+          gap: "12px",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backdropFilter: "blur(10px)",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+          zIndex: 2,
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ color: K.text, fontWeight: 700, fontSize: "13px" }}>
+            Recomendações para uso do protótipo
+          </div>
+          <div style={{ color: K.muted, fontSize: "12px", lineHeight: "1.35" }}>
+            Durante o uso do protótipo, recomendo limpar os logs para testar o fluxo completo,
+            pois o sistema ainda não está integrado a um banco de dados.
+          </div>
+        </div>
 
-  <p style={{ color: K.dim, margin: 0, fontSize: "13px" }}>
-    Sistema de Gerenciamento de Tokens VPN
-  </p>
-</div>
+        <button
+          onClick={onClearLogs}
+          style={btn(K.red, { padding: "8px 14px", fontSize: "12px", whiteSpace: "nowrap" })}
+          title="Limpar logs e resetar tokens (protótipo)"
+        >
+          🧹 Limpar log
+        </button>
+      </div>
 
+      {/* Card de login */}
+      <div
+        style={{
+          background: K.card,
+          borderRadius: "20px",
+          padding: "48px 40px",
+          width: "100%",
+          maxWidth: "400px",
+          border: `1px solid ${K.border}`,
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: "36px" }}>
+          <div style={{ fontSize: "52px", marginBottom: "12px" }}>🛡️</div>
+          <h1 style={{ color: K.text, margin: "0 0 6px", fontSize: "24px", fontWeight: "700" }}>
+            VPN Manager
+          </h1>
+          <p style={{ color: K.dim, margin: 0, fontSize: "13px" }}>
+            Sistema de Gerenciamento de Tokens VPN
+          </p>
+        </div>
 
-        {[["username", "USUÁRIO", "text", "Digite seu usuário"], ["password", "SENHA", "password", "••••••••"]].map(([k, label, type, ph]) => (
+        {[
+          ["username", "USUÁRIO", "text", "Digite seu usuário"],
+          ["password", "SENHA", "password", "••••••••"],
+        ].map(([k, label, type, ph]) => (
           <div key={k} style={{ marginBottom: "16px" }}>
-            <label style={{ display: "block", color: K.muted, fontSize: "11px", fontWeight: "700", letterSpacing: "0.08em", marginBottom: "8px" }}>{label}</label>
+            <label
+              style={{
+                display: "block",
+                color: K.muted,
+                fontSize: "11px",
+                fontWeight: "700",
+                letterSpacing: "0.08em",
+                marginBottom: "8px",
+              }}
+            >
+              {label}
+            </label>
             <input
               style={inp({ width: "100%" })}
               type={type}
@@ -354,15 +420,26 @@ function LoginPage({ users, onLogin }) {
           </div>
         ))}
 
-        {err && <p style={{ color: K.red, textAlign: "center", marginBottom: "12px", fontSize: "13px" }}>{err}</p>}
+        {err && (
+          <p style={{ color: K.red, textAlign: "center", marginBottom: "12px", fontSize: "13px" }}>
+            {err}
+          </p>
+        )}
 
-        <button style={btn(K.blue, { width: "100%", padding: "13px", fontSize: "15px" })} onClick={submit}>
+        <button
+          style={btn(K.blue, { width: "100%", padding: "13px", fontSize: "15px" })}
+          onClick={submit}
+        >
           Entrar →
         </button>
 
         <div style={{ marginTop: "24px", background: K.bg, borderRadius: "10px", padding: "14px", fontSize: "12px" }}>
-          <div style={{ color: K.dim, fontWeight: "700", letterSpacing: "0.06em", marginBottom: "8px" }}>NTT Data BS</div>
-          <div style={{ color: K.dim }}> <span style={{ color: K.blue, fontFamily: "monospace" }}>lds © 2026</span></div>
+          <div style={{ color: K.dim, fontWeight: "700", letterSpacing: "0.06em", marginBottom: "8px" }}>
+            NTT Data BS
+          </div>
+          <div style={{ color: K.dim }}>
+            <span style={{ color: K.blue, fontFamily: "monospace" }}>lds © 2026</span>
+          </div>
         </div>
       </div>
     </div>
@@ -2147,12 +2224,11 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  // Persist helper
+  // Persist helper (CORRETO)
   const saveKey = useCallback(async (key, val) => {
-  await db.set(key, val);
-  setData((p) => ({ ...p, [key]: val }));
-}, []);
-
+    await db.set(key, val);
+    setData((p) => ({ ...p, [key]: val }));
+  }, []);
 
   // ---- INIT DB
   useEffect(() => {
@@ -2208,11 +2284,18 @@ export default function App() {
     return () => clearInterval(id);
   }, [ready]);
 
-  // ---- RELEASE (manual)
+  // ---- RELEASE (manual) - com blindagens
   const doRelease = useCallback(
     async (token, motivo = "Liberado manualmente") => {
+      // evita log indevido
+      if (!token || token.status !== "ocupado") {
+        showToast("Token já está livre.", "info");
+        return;
+      }
+
       const nowIso = new Date().toISOString();
       const { tokens, logs } = dataRef.current;
+      const safeLogs = Array.isArray(logs) ? logs : [];
 
       const newLog = {
         id: genId(),
@@ -2225,13 +2308,13 @@ export default function App() {
         motivo,
       };
 
-      const newTokens = tokens.map((t) =>
+      const newTokens = (Array.isArray(tokens) ? tokens : []).map((t) =>
         t.id === token.id
           ? { ...t, status: "livre", consultorId: null, startTime: null, durationMs: null, expiresAt: null }
           : t
       );
 
-      const newLogs = [newLog, ...logs];
+      const newLogs = [newLog, ...safeLogs];
 
       await db.set("tokens", newTokens);
       await db.set("logs", newLogs);
@@ -2298,7 +2381,6 @@ export default function App() {
         showToast(`VPN renovada por ${minutes} min.`, "success");
       }
 
-      // permite avisar novamente no próximo ciclo
       seenWarns.current.delete(modal.tokenId);
       setWarnToken(null);
       setDurationModal(null);
@@ -2306,7 +2388,7 @@ export default function App() {
     [durationModal, minutesToMs, doReserve, doRenew, showToast]
   );
 
-  // ---- WARN nos últimos 5 min (somente consultor, somente token dele)
+  // ---- WARN nos últimos 5 min (somente consultor e token dele)
   useEffect(() => {
     if (!user || user.role !== "consultant") return;
     const myId = user.consultorId;
@@ -2340,12 +2422,12 @@ export default function App() {
       const now = Date.now();
 
       let changed = false;
-      let newLogs = logs;
+      let newLogs = Array.isArray(logs) ? logs : [];
 
-      const newTokens = tokens.map((t) => {
+      const newTokens = (Array.isArray(tokens) ? tokens : []).map((t) => {
         if (t.status !== "ocupado") return t;
 
-        // migração segura (se existir token antigo sem expiresAt)
+        // ✅ CORREÇÃO AQUI: faltava "||" e "|| MAX_MS"
         const effectiveExpiresAt =
           t.expiresAt || (t.startTime ? t.startTime + (t.durationMs || MAX_MS) : null);
 
@@ -2441,7 +2523,7 @@ export default function App() {
         />
       )}
 
-      {/* Modal de duração (serve para reservar e renovar) */}
+      {/* Modal de duração */}
       {durationModal && (
         <DurationModal
           title={durationModal.mode === "reserve" ? "Definir tempo de uso da VPN" : "Renovar tempo de VPN"}
@@ -2463,7 +2545,28 @@ export default function App() {
       )}
 
       {!user ? (
-        <LoginPage users={data.users} onLogin={setUser} />
+        <LoginPage
+          users={data.users}
+          onLogin={setUser}
+          onClearLogs={async () => {
+            // ✅ Opção 1: limpar logs + resetar tokens ocupados
+            await db.set("logs", []);
+
+            const resetTokens = (dataRef.current.tokens || []).map((t) =>
+              t.status === "ocupado"
+                ? { ...t, status: "livre", consultorId: null, startTime: null, durationMs: null, expiresAt: null }
+                : t
+            );
+
+            await db.set("tokens", resetTokens);
+            setData((p) => ({ ...p, logs: [], tokens: resetTokens }));
+
+            setWarnToken(null);
+            seenWarns.current = new Set();
+
+            showToast("Logs limpos e tokens resetados com sucesso.", "success");
+          }}
+        />
       ) : user.role === "admin" ? (
         <AdminDashboard
           data={data}
