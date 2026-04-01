@@ -328,117 +328,134 @@ function LoginPage({ users, onLogin, onClearLogs }) {
         alignItems: "center",
         justifyContent: "center",
         padding: "20px",
-        position: "relative", // ✅ importante para o absolute funcionar
       }}
     >
-      {/* ✅ Aviso do protótipo + botão (área vermelha) */}
+      {/* ✅ container com largura fixa e stretch real */}
       <div
         style={{
-          position: "absolute",
-          top: "90px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "min(820px, 92vw)",
-          background: "rgba(30, 41, 59, 0.65)",
-          border: `1px solid ${K.border}`,
-          borderRadius: "14px",
-          padding: "12px 14px",
-          display: "flex",
-          gap: "12px",
-          alignItems: "center",
-          justifyContent: "space-between",
-          backdropFilter: "blur(10px)",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-          zIndex: 2,
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          <div style={{ color: K.text, fontWeight: 700, fontSize: "13px" }}>
-            Recomendações para uso do protótipo
-          </div>
-          <div style={{ color: K.muted, fontSize: "12px", lineHeight: "1.35" }}>
-            Durante o uso do protótipo, recomendo limpar os logs para testar o fluxo completo,
-            pois o sistema ainda não está integrado a um banco de dados.
-          </div>
-        </div>
-
-        <button
-          onClick={onClearLogs}
-          style={btn(K.red, { padding: "8px 14px", fontSize: "12px", whiteSpace: "nowrap" })}
-          title="Limpar logs e resetar tokens (protótipo)"
-        >
-          🧹 Limpar log
-        </button>
-      </div>
-
-      {/* Card de login */}
-      <div
-        style={{
-          background: K.card,
-          borderRadius: "20px",
-          padding: "48px 40px",
           width: "100%",
           maxWidth: "400px",
-          border: `1px solid ${K.border}`,
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          alignItems: "stretch", // ✅ garante que os filhos ocupem exatamente a mesma largura
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: "36px" }}>
-          <div style={{ fontSize: "52px", marginBottom: "12px" }}>🛡️</div>
-          <h1 style={{ color: K.text, margin: "0 0 6px", fontSize: "24px", fontWeight: "700" }}>
-            VPN Manager
-          </h1>
-          <p style={{ color: K.dim, margin: 0, fontSize: "13px" }}>
-            Sistema de Gerenciamento de Tokens VPN
-          </p>
+        {/* ✅ Banner superior (encaixado e 100% da largura do container) */}
+        <div
+          style={{
+            width: "100%",
+            boxSizing: "border-box", // ✅ garante padding dentro da largura
+            background: "rgba(30, 41, 59, 0.65)",
+            border: `1px solid ${K.border}`,
+            borderRadius: "20px", // ✅ igual ao card (melhora “perfeita” sensação de alinhamento)
+            padding: "12px 14px",
+
+            display: "flex",
+            gap: "12px",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+          }}
+        >
+          {/* ✅ sem minWidth grande (evita “forçar” quebra e parecer menor) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+            <div style={{ color: K.text, fontWeight: 700, fontSize: "13px" }}>
+              Recomendações para uso do protótipo
+            </div>
+            <div style={{ color: K.muted, fontSize: "12px", lineHeight: "1.35" }}>
+              Durante o uso do protótipo, recomendo limpar os logs para testar o fluxo completo,
+              pois o sistema ainda não está integrado a um banco de dados.
+            </div>
+          </div>
+
+          <button
+            onClick={onClearLogs}
+            style={btn(K.red, {
+              padding: "8px 14px",
+              fontSize: "12px",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            })}
+            title="Limpar logs e resetar tokens (protótipo)"
+          >
+            🧹 Limpar log
+          </button>
         </div>
 
-        {[
-          ["username", "USUÁRIO", "text", "Digite seu usuário"],
-          ["password", "SENHA", "password", "••••••••"],
-        ].map(([k, label, type, ph]) => (
-          <div key={k} style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                color: K.muted,
-                fontSize: "11px",
-                fontWeight: "700",
-                letterSpacing: "0.08em",
-                marginBottom: "8px",
-              }}
-            >
-              {label}
-            </label>
-            <input
-              style={inp({ width: "100%" })}
-              type={type}
-              value={form[k]}
-              placeholder={ph}
-              onChange={upd(k)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
-            />
-          </div>
-        ))}
-
-        {err && (
-          <p style={{ color: K.red, textAlign: "center", marginBottom: "12px", fontSize: "13px" }}>
-            {err}
-          </p>
-        )}
-
-        <button
-          style={btn(K.blue, { width: "100%", padding: "13px", fontSize: "15px" })}
-          onClick={submit}
+        {/* ✅ Card de login (100% da largura do container) */}
+        <div
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: K.card,
+            borderRadius: "20px",
+            padding: "48px 40px",
+            border: `1px solid ${K.border}`,
+          }}
         >
-          Entrar →
-        </button>
-
-        <div style={{ marginTop: "24px", background: K.bg, borderRadius: "10px", padding: "14px", fontSize: "12px" }}>
-          <div style={{ color: K.dim, fontWeight: "700", letterSpacing: "0.06em", marginBottom: "8px" }}>
-            NTT Data BS
+          <div style={{ textAlign: "center", marginBottom: "36px" }}>
+            <div style={{ fontSize: "52px", marginBottom: "12px" }}>🛡️</div>
+            <h1 style={{ color: K.text, margin: "0 0 6px", fontSize: "24px", fontWeight: "700" }}>
+              VPN Manager
+            </h1>
+            <p style={{ color: K.dim, margin: 0, fontSize: "13px" }}>
+              Sistema de Gerenciamento de Tokens VPN
+            </p>
           </div>
-          <div style={{ color: K.dim }}>
-            <span style={{ color: K.blue, fontFamily: "monospace" }}>lds © 2026</span>
+
+          {[
+            ["username", "USUÁRIO", "text", "Digite seu usuário"],
+            ["password", "SENHA", "password", "••••••••"],
+          ].map(([k, label, type, ph]) => (
+            <div key={k} style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: K.muted,
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  letterSpacing: "0.08em",
+                  marginBottom: "8px",
+                }}
+              >
+                {label}
+              </label>
+
+              <input
+                style={inp({ width: "100%" })}
+                type={type}
+                value={form[k]}
+                placeholder={ph}
+                onChange={upd(k)}
+                onKeyDown={(e) => e.key === "Enter" && submit()}
+              />
+            </div>
+          ))}
+
+          {err && (
+            <p style={{ color: K.red, textAlign: "center", marginBottom: "12px", fontSize: "13px" }}>
+              {err}
+            </p>
+          )}
+
+          <button
+            style={btn(K.blue, { width: "100%", padding: "13px", fontSize: "15px" })}
+            onClick={submit}
+          >
+            Entrar →
+          </button>
+
+          <div style={{ marginTop: "24px", background: K.bg, borderRadius: "10px", padding: "14px", fontSize: "12px" }}>
+            <div style={{ color: K.dim, fontWeight: "700", letterSpacing: "0.06em", marginBottom: "8px" }}>
+              NTT Data BS
+            </div>
+            <div style={{ color: K.dim }}>
+              <span style={{ color: K.blue, fontFamily: "monospace" }}>lds © 2026</span>
+            </div>
           </div>
         </div>
       </div>
